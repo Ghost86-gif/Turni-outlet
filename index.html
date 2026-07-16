@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Turni Outlet</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏬 Turni Outlet</h1>
+            <p class="pv-edit">Orario PV: <span id="pv-orario" title="Clicca per modificare l'orario">10-20</span></p>
+        </header>
+
+        <main>
+            <section class="metrics">
+                <div class="metric-card">
+                    <div class="metric-value" id="total-hours">0.0</div>
+                    <div class="metric-label">Totale Ore Risorse</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="fte-value">0.00</div>
+                    <div class="metric-label">FTE (Full Time Equivalent)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="coverage-index">0.00</div>
+                    <div class="metric-label">Indice Copertura</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="fte-bdg">4.00</div>
+                    <div class="metric-label">FTE BDG</div>
+                </div>
+            </section>
+
+            <section class="turni-section">
+                <table class="turni-table">
+                    <thead>
+                        <tr>
+                            <th>Storico</th>
+                            <th class="data-cell" data-row="storico" data-i="0"></th>
+                            <th class="data-cell" data-row="storico" data-i="1"></th>
+                            <th class="data-cell" data-row="storico" data-i="2"></th>
+                            <th class="data-cell" data-row="storico" data-i="3"></th>
+                            <th class="data-cell" data-row="storico" data-i="4"></th>
+                            <th class="data-cell" data-row="storico" data-i="5"></th>
+                            <th class="data-cell" data-row="storico" data-i="6"></th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                        <tr>
+                            <th>Pari data</th>
+                            <th class="data-cell" data-row="paridata" data-i="0"></th>
+                            <th class="data-cell" data-row="paridata" data-i="1"></th>
+                            <th class="data-cell" data-row="paridata" data-i="2"></th>
+                            <th class="data-cell" data-row="paridata" data-i="3"></th>
+                            <th class="data-cell" data-row="paridata" data-i="4"></th>
+                            <th class="data-cell" data-row="paridata" data-i="5"></th>
+                            <th class="data-cell" data-row="paridata" data-i="6"></th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                        <tr class="date-row">
+                            <th>Data</th>
+                            <th class="data-cell" data-row="data" data-i="0"></th>
+                            <th class="data-cell" data-row="data" data-i="1"></th>
+                            <th class="data-cell" data-row="data" data-i="2"></th>
+                            <th class="data-cell" data-row="data" data-i="3"></th>
+                            <th class="data-cell" data-row="data" data-i="4"></th>
+                            <th class="data-cell" data-row="data" data-i="5"></th>
+                            <th class="data-cell" data-row="data" data-i="6"></th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                        <tr>
+                            <th>Risorsa (Contratto)</th>
+                            <th>Lun</th>
+                            <th>Mar</th>
+                            <th>Mer</th>
+                            <th>Gio</th>
+                            <th>Ven</th>
+                            <th>Sab</th>
+                            <th>Dom</th>
+                            <th>Ore Tot.</th>
+                            <th>Recupero</th>
+                        </tr>
+                    </thead>
+                    <tbody id="turni-body"></tbody>
+                </table>
+            </section>
+
+            <section class="actions">
+                <button class="btn btn-primary" onclick="exportPDF()">📄 Esporta PDF</button>
+                <button class="btn btn-secondary" onclick="resetTurni()">🔄 Azzera Tutto</button>
+            </section>
+
+            <section class="chart-section">
+                <div class="chart-header">
+                    <h2>📊 Copertura Settimanale</h2>
+                    <div class="day-picker" id="day-picker"></div>
+                </div>
+                <div class="gantt" id="gantt"></div>
+            </section>
+
+            <div id="modal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeModal()">&times;</span>
+                    <h2 id="modal-title"></h2>
+                    <p id="modal-message"></p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Gestione Turni Outlet | Pausa 30 min auto su turni ≥ 6h</p>
+        </footer>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
