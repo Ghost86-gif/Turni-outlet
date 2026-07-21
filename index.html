@@ -92,7 +92,10 @@
 
             <section class="actions">
                 <button class="btn btn-primary" onclick="exportPDF()">📄 Esporta PDF</button>
+                <button class="btn btn-save" onclick="saveSchedule()">💾 Salva turni</button>
+                <button class="btn btn-secondary" onclick="triggerLoadSchedule()">📂 Apri salvataggio</button>
                 <button class="btn btn-secondary" onclick="resetTurni()">🔄 Azzera Tutto</button>
+                <input id="schedule-file-input" type="file" accept="application/json,.json" hidden onchange="loadSchedule(this)">
             </section>
 
             <section class="chart-section">

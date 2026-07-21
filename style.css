@@ -216,6 +216,7 @@ header p { color: #cbd5e1; margin-top: 6px; font-size: 1.02em; }
 }
 .btn:hover { transform: translateY(-2px); filter: brightness(1.12); box-shadow: 0 6px 16px rgba(0,0,0,.4); }
 .btn-primary { background: var(--accent); border-color: var(--accent); }
+.btn-save { background: #15803d; border-color: #15803d; }
 .btn-secondary { background: #475569; border-color: #475569; }
 .btn-danger { background: var(--accent-2); border-color: var(--accent-2); }
 

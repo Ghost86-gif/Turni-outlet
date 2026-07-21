@@ -154,7 +154,7 @@ function populateTable() {
 
         // Prima colonna: NOME (cliccabile) + CONTRATTO ORE (cliccabile)
         const colori = {
-            giallo: "#eab308", rosa: "#ec4899", arancione: "#f97316",
+            giallo: "#f0e68c", rosa: "#f8bbd0", arancione: "#f97316",
             azzurro: "#06b6d4", verde: "#22c55e", blu: "#3b82f6",
             marrone: "#a16207", grigio: "#94a3b8"
         };
@@ -370,6 +370,7 @@ window.exportPDF = function () {
     // Forza sfondo bianco + testo nero ovunque (tranne i dati verde/rosso)
     const style = document.createElement("style");
     style.textContent = `
+        /* Set background and text color for all elements */
         .container, header, .metrics, .metric-card, .turni-section,
         .turni-table, .turni-table thead th, .turni-table tbody tr,
         .turni-table tbody tr:nth-child(even), .turni-table tbody tr:hover,
@@ -377,8 +378,17 @@ window.exportPDF = function () {
         .recovery-cell, .date-row th, .data-cell, .nome-op, .contratto-op {
             background: #ffffff !important;
             color: #000000 !important;
+        }
+
+        /* Set border color for all elements except .resource-name */
+        .container, header, .metrics, .metric-card, .turni-section,
+        .turni-table, .turni-table thead th, .turni-table tbody tr,
+        .turni-table tbody tr:nth-child(even), .turni-table tbody tr:hover,
+        .shift-cell, .shift-cell.empty, .total-cell,
+        .recovery-cell, .date-row th, .data-cell, .nome-op, .contratto-op {
             border-color: #cccccc !important;
         }
+
         header {
             background: #ffffff !important;
             border-bottom: 2px solid #000000 !important;
@@ -397,6 +407,34 @@ window.exportPDF = function () {
         .turni-table thead tr:nth-child(-n+3) th { padding: 3px 6px !important; font-size: 0.85em !important; }
         .data-cell { font-size: 0.85em !important; }
         .shift-cell.empty { color: #999999 !important; }
+
+        /* Intestazioni Storico e Pari data: rosa tenue, separate dalle righe sottostanti. */
+        .turni-table thead tr:nth-child(1) > *,
+        .turni-table thead tr:nth-child(2) > * {
+            background: #fde8e8 !important;
+        }
+        .turni-table thead tr:nth-child(2) > *,
+        .turni-table thead tr:nth-child(3) > * {
+            border-bottom: 3px solid #d9a6a6 !important;
+        }
+
+        /* Una tonalita' pastello per ogni operatore: solo nel PDF. */
+        .turni-table tbody tr:nth-child(1) > * ,
+        .turni-table tbody tr:nth-child(1) .shift-cell { background: #fff9e8 !important; }
+        .turni-table tbody tr:nth-child(2) > * ,
+        .turni-table tbody tr:nth-child(2) .shift-cell { background: #fff0f4 !important; }
+        .turni-table tbody tr:nth-child(3) > * ,
+        .turni-table tbody tr:nth-child(3) .shift-cell { background: #fff3e8 !important; }
+        .turni-table tbody tr:nth-child(4) > * ,
+        .turni-table tbody tr:nth-child(4) .shift-cell { background: #edf8ff !important; }
+        .turni-table tbody tr:nth-child(5) > * ,
+        .turni-table tbody tr:nth-child(5) .shift-cell { background: #eef9f0 !important; }
+        .turni-table tbody tr:nth-child(6) > * ,
+        .turni-table tbody tr:nth-child(6) .shift-cell { background: #f4efff !important; }
+        .turni-table tbody tr:nth-child(7) > * ,
+        .turni-table tbody tr:nth-child(7) .shift-cell { background: #fff1e8 !important; }
+        .turni-table tbody tr:nth-child(8) > * ,
+        .turni-table tbody tr:nth-child(8) .shift-cell { background: #eef5ff !important; }
     `;
     clone.appendChild(style);
 
@@ -441,6 +479,81 @@ window.exportPDF = function () {
 function esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+
+// Salvataggio locale: il browser scarica un file JSON che puo' essere riaperto in seguito.
+window.saveSchedule = function () {
+    const suggerito = "turni-outlet-" + new Date().toISOString().slice(0, 10);
+    const richiesto = prompt("Nome del file di salvataggio:", suggerito);
+    if (richiesto === null) return;
+
+    const base = richiesto.trim() || suggerito;
+    const nome = base.replace(/[\\\\/:*?"<>|]/g, "-").replace(/\.json$/i, "") + ".json";
+    const contenuto = {
+        versione: 1,
+        salvato_il: new Date().toISOString(),
+        dati: employeeData
+    };
+    const blob = new Blob([JSON.stringify(contenuto, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+};
+
+window.triggerLoadSchedule = function () {
+    document.getElementById("schedule-file-input").click();
+};
+
+window.loadSchedule = function (input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const salvato = JSON.parse(reader.result);
+            const dati = salvato.dati || salvato;
+            if (!dati || !dati.parametri_generali || !Array.isArray(dati.dipendenti)) {
+                throw new Error("Il file non contiene una pianificazione valida.");
+            }
+
+            dati.dipendenti.forEach(emp => {
+                if (!emp.turni) throw new Error("Il file contiene un operatore senza turni.");
+                GIORNI.forEach(day => {
+                    if (!emp.turni[day]) emp.turni[day] = { orario: "", ore_nette: 0 };
+                    emp.turni[day].orario = String(emp.turni[day].orario || "");
+                    emp.turni[day].ore_nette = calcolaOre(emp.turni[day].orario);
+                });
+                emp.nome = String(emp.nome || "Operatore");
+                emp.contratto_ore = Number(emp.contratto_ore) || 0;
+                ricalcolaOperatore(emp);
+            });
+
+            const parametri = dati.parametri_generali;
+            ["date_settimana", "storico_settimana", "paridata_settimana"].forEach(campo => {
+                if (!Array.isArray(parametri[campo])) parametri[campo] = ["", "", "", "", "", "", ""];
+            });
+            parametri.orario_apertura_pv = String(parametri.orario_apertura_pv || "10-20");
+            parametri.tot_ore_apertura_pv = oreAperturaPV(parametri.orario_apertura_pv);
+            parametri.fte_bdg = Number(parametri.fte_bdg) || 0;
+
+            employeeData = dati;
+            populateTable();
+            setupDateEditor();
+            updateMetrics();
+            setupChart();
+            alert("Pianificazione caricata con successo.");
+        } catch (errore) {
+            alert("Impossibile aprire il file: " + errore.message);
+        } finally {
+            input.value = "";
+        }
+    };
+    reader.readAsText(file);
+};
 
 window.resetTurni = function () {
     if (confirm("Azzerare tutti i turni e i nomi?")) {
