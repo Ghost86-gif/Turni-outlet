@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFteBdg();
     setupDateEditor();
     setupChart();
+    renderMobileWeekInfo();
 });
 
 // Righe editabili (Storico / Pari data / Data) sopra i giorni
@@ -79,6 +80,8 @@ function setupDateEditor() {
                 const v = input.value.trim();
                 employeeData.parametri_generali[campo][i] = v;
                 th.textContent = v;
+                renderMobileWeekInfo();
+                setupChart();
             };
             input.addEventListener("keydown", e => {
                 if (e.key === "Enter") { e.preventDefault(); fine(); }
@@ -302,6 +305,36 @@ function updateUI() {
     });
     updateMetrics();
     drawChart();
+    renderMobileWeekInfo();
+}
+
+// Riepilogo compatto delle date, visibile solo nella versione per telefono.
+function renderMobileWeekInfo() {
+    const contenitore = document.getElementById("mobile-week-info");
+    if (!contenitore) return;
+    contenitore.innerHTML = "";
+    const parametri = employeeData.parametri_generali;
+    const righe = [
+        ["Storico", parametri.storico_settimana || []],
+        ["Pari data", parametri.paridata_settimana || []],
+        ["Data", parametri.date_settimana || []]
+    ];
+
+    GIORNI.forEach((giorno, i) => {
+        const valori = righe.filter(([, dati]) => dati[i]).map(([etichetta, dati]) => [etichetta, dati[i]]);
+        if (valori.length === 0) return;
+        const scheda = document.createElement("div");
+        scheda.className = "mobile-week-day";
+        const titolo = document.createElement("strong");
+        titolo.textContent = giorno.slice(0, 3);
+        scheda.appendChild(titolo);
+        valori.forEach(([etichetta, valore]) => {
+            const riga = document.createElement("span");
+            riga.textContent = etichetta + ": " + valore;
+            scheda.appendChild(riga);
+        });
+        contenitore.appendChild(scheda);
+    });
 }
 
 function updateMetrics() {
@@ -545,6 +578,7 @@ window.loadSchedule = function (input) {
             setupDateEditor();
             updateMetrics();
             setupChart();
+            renderMobileWeekInfo();
             alert("Pianificazione caricata con successo.");
         } catch (errore) {
             alert("Impossibile aprire il file: " + errore.message);
@@ -560,6 +594,8 @@ window.resetTurni = function () {
         employeeData = datiVuoti();
         populateTable();
         updateMetrics();
+        setupChart();
+        renderMobileWeekInfo();
     }
 };
 

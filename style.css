@@ -102,6 +102,7 @@ header p { color: #cbd5e1; margin-top: 6px; font-size: 1.02em; }
     border-radius: var(--radius);
     border: 1px solid var(--border);
 }
+.mobile-week-info { display: none; }
 .turni-table {
     width: 100%;
     border-collapse: separate;
@@ -314,7 +315,53 @@ footer {
     header h1 { font-size: 1.5em; }
     .metrics { grid-template-columns: repeat(2, 1fr); padding: 14px; }
     .metric-value { font-size: 1.8em; }
-    .turni-table { font-size: .8em; }
+    .turni-section { overflow: visible; margin: 0 12px 20px; border: 0; }
+    .turni-table, .turni-table tbody, .turni-table tr,
+    .turni-table th, .turni-table td { display: block; width: 100%; }
+    .turni-table { font-size: .92em; }
+    .turni-table thead { display: none; }
+    .turni-table tbody tr {
+        margin-bottom: 14px; border: 1px solid var(--border);
+        border-radius: var(--radius); overflow: hidden;
+        background: var(--bg-elev-2) !important;
+    }
+    .turni-table .resource-name {
+        min-width: 0; padding: 12px 14px !important;
+        background: rgba(59,130,246,.12); border-bottom: 1px solid var(--border);
+    }
+    .turni-table tbody td {
+        display: flex; align-items: center; justify-content: space-between;
+        min-height: 43px; padding: 8px 12px; text-align: right;
+        border-bottom: 1px solid rgba(51,65,85,.65);
+    }
+    .turni-table tbody td::before {
+        font-size: .78em; font-weight: 700; color: var(--text-dim);
+        text-transform: uppercase; letter-spacing: .45px;
+    }
+    .turni-table tbody td:nth-of-type(1)::before { content: "Lun"; }
+    .turni-table tbody td:nth-of-type(2)::before { content: "Mar"; }
+    .turni-table tbody td:nth-of-type(3)::before { content: "Mer"; }
+    .turni-table tbody td:nth-of-type(4)::before { content: "Gio"; }
+    .turni-table tbody td:nth-of-type(5)::before { content: "Ven"; }
+    .turni-table tbody td:nth-of-type(6)::before { content: "Sab"; }
+    .turni-table tbody td:nth-of-type(7)::before { content: "Dom"; }
+    .turni-table tbody td:nth-of-type(8)::before { content: "Ore tot."; }
+    .turni-table tbody td:nth-of-type(9)::before { content: "Recupero"; }
+    .shift-cell { width: auto; min-height: 0; padding: 5px 8px; text-align: right; }
+    .shift-cell.empty::after { content: "—"; }
+    .total-cell, .recovery-cell { background: transparent !important; }
+    .mobile-week-info {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px; margin: 0 0 14px;
+    }
+    .mobile-week-day {
+        padding: 9px; border: 1px solid var(--border); border-radius: 8px;
+        background: var(--bg-elev-2); font-size: .78em;
+    }
+    .mobile-week-day strong { display: block; color: var(--accent); margin-bottom: 3px; }
+    .mobile-week-day span { display: block; color: var(--text-dim); line-height: 1.45; }
+    .chart-section { overflow-x: auto; }
+    .gantt { min-width: 480px; }
     .actions { flex-direction: column; }
     .btn { width: 100%; }
 }
