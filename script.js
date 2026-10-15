@@ -2,20 +2,35 @@
 
 const GIORNI = ['Lunedi', 'Martedi', 'Mercoledi', 'Giovedi', 'Venerdi', 'Sabato', 'Domenica'];
 
-// Ore di apertura PV: somma dei giorni (senza pausa). Es. "10-20" x7 = 70h.
-function oreAperturaPV(orario) {
-    if (!orario) return 0;
-    const v = orario.toLowerCase().trim();
-    if (v === "") return 0;
-    let tot = 0;
-    for (const blocco of v.split("/")) {
-        const m = blocco.match(/(\d+):?(\d*)\s*-\s*(\d+):?(\d*)/);
-        if (!m) continue;
-        const h1 = +m[1], min1 = m[2] ? +m[2] : 0;
-        const h2 = +m[3], min2 = m[4] ? +m[4] : 0;
-        tot += (h2 * 60 + min2 - (h1 * 60 + min1)) / 60;
+// Converte gli intervalli in minuti e rifiuta orari incompleti, impossibili o sovrapposti.
+function parseTimeBlocks(orario) {
+    if (!orario || !String(orario).trim()) return [];
+    const v = String(orario).trim().toLowerCase();
+    if (v.includes("riposo")) return [];
+    const intervalli = [];
+    for (const blocco of v.split("/").map(b => b.trim())) {
+        const m = blocco.match(/^(\d{1,2})(?::(\d{1,2}))?\s*-\s*(\d{1,2})(?::(\d{1,2}))?$/);
+        if (!m) return null;
+        const h1 = Number(m[1]), min1 = Number(m[2] || 0);
+        const h2 = Number(m[3]), min2 = Number(m[4] || 0);
+        if (h1 > 23 || h2 > 24 || min1 > 59 || min2 > 59 || (h2 === 24 && min2 !== 0)) return null;
+        const inizio = h1 * 60 + min1, fine = h2 * 60 + min2;
+        if (fine <= inizio || fine > 1440) return null;
+        intervalli.push({ inizio, fine, etichetta: blocco });
     }
-    return Math.round(tot * 7 * 10) / 10; // 7 giorni
+    intervalli.sort((a, b) => a.inizio - b.inizio);
+    for (let i = 1; i < intervalli.length; i++) {
+        if (intervalli[i].inizio < intervalli[i - 1].fine) return null;
+    }
+    return intervalli;
+}
+
+// Ore di apertura PV settimanali: intervalli giornalieri x 7 giorni.
+function oreAperturaPV(orario) {
+    const intervalli = parseTimeBlocks(orario);
+    if (!intervalli || intervalli.length === 0) return 0;
+    const minuti = intervalli.reduce((tot, x) => tot + x.fine - x.inizio, 0);
+    return Math.round((minuti / 60) * 7 * 100) / 100;
 }
 
 // Dati iniziali: 8 operatori, turni VUOTI, contratti variabili.
@@ -64,31 +79,34 @@ const RIGHE_EDITABILI = {
 };
 
 function setupDateEditor() {
-    const celle = document.querySelectorAll(".data-cell");
-    celle.forEach(th => {
-        const rowKey = th.dataset.row;
-        const campo = RIGHE_EDITABILI[rowKey];
+    document.querySelectorAll(".data-cell").forEach(th => {
+        const campo = RIGHE_EDITABILI[th.dataset.row];
         const i = parseInt(th.dataset.i, 10);
         th.textContent = employeeData.parametri_generali[campo][i] || "";
-        th.addEventListener("click", () => {
+        th.onclick = () => {
+            if (th.querySelector("input")) return;
+            const precedente = employeeData.parametri_generali[campo][i] || "";
             const input = document.createElement("input");
-            input.value = th.textContent;
+            input.value = precedente;
             th.innerHTML = "";
             th.appendChild(input);
             input.focus(); input.select();
-            const fine = () => {
-                const v = input.value.trim();
+            let terminato = false;
+            const fine = (annulla = false) => {
+                if (terminato) return;
+                terminato = true;
+                const v = annulla ? precedente : input.value.trim();
                 employeeData.parametri_generali[campo][i] = v;
                 th.textContent = v;
                 renderMobileWeekInfo();
                 setupChart();
             };
             input.addEventListener("keydown", e => {
-                if (e.key === "Enter") { e.preventDefault(); fine(); }
-                else if (e.key === "Escape") { th.textContent = employeeData.parametri_generali[campo][i] || ""; }
+                if (e.key === "Enter") { e.preventDefault(); fine(false); }
+                else if (e.key === "Escape") { e.preventDefault(); fine(true); }
             });
-            input.addEventListener("blur", fine);
-        });
+            input.addEventListener("blur", () => fine(false));
+        };
     });
 }
 
@@ -96,50 +114,43 @@ function setupDateEditor() {
 function setupPvEditor() {
     const el = document.getElementById("pv-orario");
     if (!el) return;
-    el.addEventListener("click", () => {
+    el.onclick = () => {
+        if (el.querySelector("input")) return;
+        const precedente = employeeData.parametri_generali.orario_apertura_pv;
         const input = document.createElement("input");
-        input.value = employeeData.parametri_generali.orario_apertura_pv;
+        input.value = precedente;
         el.innerHTML = "";
         el.appendChild(input);
         input.focus(); input.select();
-        const fine = () => {
+        let terminato = false;
+        const fine = (annulla = false) => {
+            if (terminato) return;
+            terminato = true;
             const v = input.value.trim();
-            if (v) {
+            const intervalli = parseTimeBlocks(v);
+            if (!annulla && v && intervalli && intervalli.length) {
                 employeeData.parametri_generali.orario_apertura_pv = v;
                 employeeData.parametri_generali.tot_ore_apertura_pv = oreAperturaPV(v);
-                updateMetrics();
+            } else if (!annulla && v !== precedente) {
+                alert("Orario non valido. Usa un formato come 10-20 oppure 10-13/15-20.");
             }
             el.textContent = employeeData.parametri_generali.orario_apertura_pv;
+            updateMetrics();
+            drawChart();
         };
         input.addEventListener("keydown", e => {
-            if (e.key === "Enter") { e.preventDefault(); fine(); }
-            else if (e.key === "Escape") { el.textContent = employeeData.parametri_generali.orario_apertura_pv; }
+            if (e.key === "Enter") { e.preventDefault(); fine(false); }
+            else if (e.key === "Escape") { e.preventDefault(); fine(true); }
         });
-        input.addEventListener("blur", fine);
-    });
+        input.addEventListener("blur", () => fine(false));
+    };
 }
 
-// "10-16:30" o "10-13/15-20" -> ore nette ( -0.5h se blocco >= 6h )
+// Pausa di 30 minuti una sola volta se il totale giornaliero è almeno 7 ore.
 function calcolaOre(orario) {
-    if (!orario) return 0;
-    const v = orario.toLowerCase().trim();
-    if (v === "" || v.includes("riposo")) return 0;
-
-    let minutiTotali = 0;
-    const blocchi = v.split("/").map(b => b.trim());
-    for (const blocco of blocchi) {
-        const m = blocco.match(/^(\d{1,2})(?::(\d{1,2}))?\s*-\s*(\d{1,2})(?::(\d{1,2}))?$/);
-        if (!m) return 0;
-        const h1 = Number(m[1]), min1 = Number(m[2] || 0);
-        const h2 = Number(m[3]), min2 = Number(m[4] || 0);
-        if (h1 > 23 || h2 > 24 || min1 > 59 || min2 > 59) return 0;
-        const inizio = h1 * 60 + min1;
-        const fine = h2 * 60 + min2;
-        if (fine > 24 * 60 || fine <= inizio) return 0;
-        minutiTotali += fine - inizio;
-    }
-
-    // Pausa di 30 minuti una sola volta sul totale giornaliero se si lavorano almeno 7 ore.
+    const intervalli = parseTimeBlocks(orario);
+    if (!intervalli || intervalli.length === 0) return 0;
+    let minutiTotali = intervalli.reduce((tot, x) => tot + x.fine - x.inizio, 0);
     if (minutiTotali >= 7 * 60) minutiTotali -= 30;
     return Math.round((minutiTotali / 60) * 100) / 100;
 }
@@ -215,78 +226,93 @@ function populateTable() {
 }
 
 function editNome(emp, el) {
+    if (el.querySelector("input")) return;
+    const precedente = emp.nome;
     const input = document.createElement("input");
-    input.value = emp.nome;
+    input.value = precedente;
     input.style.width = "150px";
     input.style.fontSize = "0.85em";
     el.innerHTML = "";
     el.appendChild(input);
     input.focus(); input.select();
-    const fine = () => {
-        const v = input.value.trim();
+    let terminato = false;
+    const fine = (annulla = false) => {
+        if (terminato) return;
+        terminato = true;
+        const v = annulla ? precedente : input.value.trim();
         if (v) emp.nome = v;
         el.textContent = emp.nome;
+        updateUI();
     };
     input.addEventListener("keydown", e => {
-        if (e.key === "Enter") { e.preventDefault(); fine(); }
-        else if (e.key === "Escape") { el.textContent = emp.nome; }
+        if (e.key === "Enter") { e.preventDefault(); fine(false); }
+        else if (e.key === "Escape") { e.preventDefault(); fine(true); }
     });
-    input.addEventListener("blur", fine);
+    input.addEventListener("blur", () => fine(false));
 }
 
 function editContratto(emp, el) {
+    if (el.querySelector("input")) return;
+    const precedente = emp.contratto_ore;
     const input = document.createElement("input");
-    input.value = emp.contratto_ore;
-    input.style.width = "50px";
+    input.value = precedente;
+    input.style.width = "60px";
     input.style.fontSize = "0.8em";
+    input.inputMode = "numeric";
     el.innerHTML = "";
     el.appendChild(input);
     input.focus(); input.select();
-    const fine = () => {
-        const v = parseInt(input.value, 10);
-        if (!isNaN(v) && v >= 0) {
-            emp.contratto_ore = v;
-            emp.recupero = Math.round((emp.totale_ore_lavorate - v) * 10) / 10;
-            updateUI();
-        }
+    let terminato = false;
+    const fine = (annulla = false) => {
+        if (terminato) return;
+        terminato = true;
+        const testo = input.value.trim(), v = Number(testo);
+        if (!annulla && testo !== "" && Number.isFinite(v) && v >= 0 && Number.isInteger(v)) emp.contratto_ore = v;
         el.textContent = emp.contratto_ore + "H";
+        updateUI();
     };
     input.addEventListener("keydown", e => {
-        if (e.key === "Enter") { e.preventDefault(); fine(); }
-        else if (e.key === "Escape") { el.textContent = emp.contratto_ore + "H"; }
+        if (e.key === "Enter") { e.preventDefault(); fine(false); }
+        else if (e.key === "Escape") { e.preventDefault(); fine(true); }
     });
-    input.addEventListener("blur", fine);
+    input.addEventListener("blur", () => fine(false));
 }
 
-function startEdit(emp, day, td, span, idx) {
+function startEdit(emp, day, td, span) {
     if (td.querySelector(".shift-input")) return;
+    const precedente = emp.turni[day].orario || "";
     const input = document.createElement("input");
     input.className = "shift-input";
-    input.value = span.textContent;
+    input.value = precedente;
     input.placeholder = "es. 13-20";
     td.innerHTML = "";
     td.appendChild(input);
     input.focus(); input.select();
 
-    let saved = false;
-    const save = () => {
-        if (saved) return;
-        saved = true;
-        const newVal = input.value.trim();
+    let terminato = false;
+    const save = (annulla = false) => {
+        if (terminato) return;
+        terminato = true;
+        const newVal = annulla ? precedente : input.value.trim();
+        if (!annulla && newVal && parseTimeBlocks(newVal) === null) {
+            alert("Turno non valido. Usa ad esempio 10-16:30 oppure 10-13/15-20. Controlla che gli intervalli non si sovrappongano.");
+            td.replaceChild(span, input);
+            return;
+        }
         emp.turni[day].orario = newVal;
         emp.turni[day].ore_nette = calcolaOre(newVal);
         ricalcolaOperatore(emp);
         span.textContent = newVal;
         span.classList.toggle("empty", newVal === "");
         updateUI();
-        td.replaceChild(span, input);
+        if (input.parentNode === td) td.replaceChild(span, input);
     };
 
     input.addEventListener("keydown", e => {
-        if (e.key === "Enter") { e.preventDefault(); save(); }
-        else if (e.key === "Escape") { td.replaceChild(span, input); }
+        if (e.key === "Enter") { e.preventDefault(); save(false); }
+        else if (e.key === "Escape") { e.preventDefault(); save(true); }
     });
-    input.addEventListener("blur", save);
+    input.addEventListener("blur", () => save(false));
 }
 
 function updateUI() {
@@ -345,10 +371,10 @@ function renderMobileWeekInfo() {
 }
 
 function updateMetrics() {
-    const totale = employeeData.dipendenti.reduce((s, e) => s + (e.totale_ore_lavorate || 0), 0);
-    const apertura = employeeData.parametri_generali.tot_ore_apertura_pv || 70;
+    const totale = employeeData.dipendenti.reduce((s, e) => s + (Number(e.totale_ore_lavorate) || 0), 0);
+    const apertura = Math.max(0, Number(employeeData.parametri_generali.tot_ore_apertura_pv) || 0);
     const fte = totale / 39;
-    const bdg = employeeData.parametri_generali.fte_bdg || 0;
+    const bdg = Math.max(0, Number(employeeData.parametri_generali.fte_bdg) || 0);
 
     document.getElementById("total-hours").textContent = totale.toFixed(1);
 
@@ -363,7 +389,7 @@ function updateMetrics() {
         fteEl.style.color = "#4ade80"; // verde
     }
 
-    document.getElementById("coverage-index").textContent = (totale / apertura).toFixed(2);
+    document.getElementById("coverage-index").textContent = (apertura > 0 ? totale / apertura : 0).toFixed(2);
 
     const bdgEl = document.getElementById("fte-bdg");
     if (bdgEl && !bdgEl.querySelector("input")) bdgEl.textContent = bdg.toFixed(2);
@@ -373,23 +399,29 @@ function updateMetrics() {
 function setupFteBdg() {
     const el = document.getElementById("fte-bdg");
     if (!el) return;
-    el.addEventListener("click", () => {
+    el.onclick = () => {
+        if (el.querySelector("input")) return;
+        const precedente = employeeData.parametri_generali.fte_bdg;
         const input = document.createElement("input");
-        input.value = employeeData.parametri_generali.fte_bdg;
+        input.value = precedente;
         el.innerHTML = "";
         el.appendChild(input);
         input.focus(); input.select();
-        const fine = () => {
+        let terminato = false;
+        const fine = (annulla = false) => {
+            if (terminato) return;
+            terminato = true;
             const v = parseFloat(input.value.replace(",", "."));
-            if (!isNaN(v) && v >= 0) employeeData.parametri_generali.fte_bdg = v;
+            if (!annulla && !isNaN(v) && v >= 0 && Number.isFinite(v)) employeeData.parametri_generali.fte_bdg = v;
             el.textContent = (employeeData.parametri_generali.fte_bdg || 0).toFixed(2);
+            updateMetrics();
         };
         input.addEventListener("keydown", e => {
-            if (e.key === "Enter") { e.preventDefault(); fine(); }
-            else if (e.key === "Escape") { el.textContent = (employeeData.parametri_generali.fte_bdg || 0).toFixed(2); }
+            if (e.key === "Enter") { e.preventDefault(); fine(false); }
+            else if (e.key === "Escape") { e.preventDefault(); fine(true); }
         });
-        input.addEventListener("blur", fine);
-    });
+        input.addEventListener("blur", () => fine(false));
+    };
 }
 
 window.exportPDF = function () {
