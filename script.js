@@ -432,6 +432,10 @@ window.exportPDF = function () {
     // Clona il container, rimuove le sezioni non utili nel PDF
     const src = document.querySelector(".container");
     const clone = src.cloneNode(true);
+    // Forza una larghezza da desktop anche quando l'esportazione parte da iPhone.
+    const exportWidth = Math.max(1100, src.scrollWidth, src.offsetWidth);
+    clone.style.width = exportWidth + "px";
+    clone.style.maxWidth = "none";
     const chart = clone.querySelector(".chart-section");
     if (chart) chart.remove();            // Copertura Settimanale (Gantt)
     const actions = clone.querySelector(".actions");
@@ -507,6 +511,16 @@ window.exportPDF = function () {
         .turni-table tbody tr:nth-child(7) .shift-cell { background: #fff1e8 !important; }
         .turni-table tbody tr:nth-child(8) > * ,
         .turni-table tbody tr:nth-child(8) .shift-cell { background: #eef5ff !important; }
+
+        /* Mantieni la tabella in formato tabellare anche esportando da uno schermo mobile. */
+        .turni-table { display: table !important; width: 100% !important; }
+        .turni-table thead { display: table-header-group !important; }
+        .turni-table tbody { display: table-row-group !important; }
+        .turni-table tr { display: table-row !important; }
+        .turni-table th, .turni-table td { display: table-cell !important; width: auto !important; }
+        .turni-table tbody td::before { display: none !important; content: none !important; }
+        .turni-table .resource-name { min-width: 180px !important; }
+        .turni-table .shift-cell { width: 100% !important; max-width: none !important; }
     `;
     clone.appendChild(style);
 
@@ -515,13 +529,13 @@ window.exportPDF = function () {
     holder.style.position = "fixed";
     holder.style.left = "-10000px";
     holder.style.top = "0";
-    holder.style.width = src.offsetWidth + "px";
+    holder.style.width = exportWidth + "px";
     holder.style.background = "#ffffff";
     holder.style.padding = "0";
     holder.appendChild(clone);
     document.body.appendChild(holder);
 
-    html2canvas(clone, { backgroundColor: "#ffffff", scale: 2, logging: false, windowWidth: src.offsetWidth }).then(canvas => {
+    html2canvas(clone, { backgroundColor: "#ffffff", scale: 2, logging: false, windowWidth: exportWidth }).then(canvas => {
         document.body.removeChild(holder);
         const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
         const PW = doc.internal.pageSize.getWidth();
@@ -593,10 +607,13 @@ window.loadSchedule = function (input) {
             }
 
             dati.dipendenti.forEach(emp => {
-                if (!emp.turni) throw new Error("Il file contiene un operatore senza turni.");
+                if (!emp || !emp.turni) throw new Error("Il file contiene un operatore senza turni.");
                 GIORNI.forEach(day => {
                     if (!emp.turni[day]) emp.turni[day] = { orario: "", ore_nette: 0 };
                     emp.turni[day].orario = String(emp.turni[day].orario || "");
+                    if (emp.turni[day].orario && parseTimeBlocks(emp.turni[day].orario) === null) {
+                        throw new Error("Orario non valido per " + (emp.nome || "un operatore") + ", " + day + ": " + emp.turni[day].orario);
+                    }
                     emp.turni[day].ore_nette = calcolaOre(emp.turni[day].orario);
                 });
                 emp.nome = String(emp.nome || "Operatore");
@@ -609,6 +626,10 @@ window.loadSchedule = function (input) {
                 if (!Array.isArray(parametri[campo])) parametri[campo] = ["", "", "", "", "", "", ""];
             });
             parametri.orario_apertura_pv = String(parametri.orario_apertura_pv || "10-20");
+            const intervalliPV = parseTimeBlocks(parametri.orario_apertura_pv);
+            if (!intervalliPV || !intervalliPV.length) {
+                throw new Error("L'orario di apertura del negozio nel file non è valido.");
+            }
             parametri.tot_ore_apertura_pv = oreAperturaPV(parametri.orario_apertura_pv);
             parametri.fte_bdg = Number(parametri.fte_bdg) || 0;
 
