@@ -6,7 +6,7 @@ const GIORNI = ['Lunedi', 'Martedi', 'Mercoledi', 'Giovedi', 'Venerdi', 'Sabato'
 function parseTimeBlocks(orario) {
     if (!orario || !String(orario).trim()) return [];
     const v = String(orario).trim().toLowerCase();
-    if (v.includes("riposo")) return [];
+    if (v === "riposo") return [];
     const intervalli = [];
     for (const blocco of v.split("/").map(b => b.trim())) {
         const m = blocco.match(/^(\d{1,2})(?::(\d{1,2}))?\s*-\s*(\d{1,2})(?::(\d{1,2}))?$/);
@@ -568,7 +568,9 @@ function esc(s) {
 
 // Salvataggio locale: il browser scarica un file JSON che puo' essere riaperto in seguito.
 window.saveSchedule = function () {
-    const suggerito = "turni-outlet-" + new Date().toISOString().slice(0, 10);
+    const oggi = new Date();
+    const dataLocale = [oggi.getFullYear(), String(oggi.getMonth() + 1).padStart(2, "0"), String(oggi.getDate()).padStart(2, "0")].join("-");
+    const suggerito = "turni-outlet-" + dataLocale;
     const richiesto = prompt("Nome del file di salvataggio:", suggerito);
     if (richiesto === null) return;
 
@@ -587,7 +589,8 @@ window.saveSchedule = function () {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    // Attendi che il browser inizi il download prima di revocare l'URL temporaneo.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 window.triggerLoadSchedule = function () {
