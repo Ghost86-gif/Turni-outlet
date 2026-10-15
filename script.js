@@ -124,17 +124,24 @@ function calcolaOre(orario) {
     if (!orario) return 0;
     const v = orario.toLowerCase().trim();
     if (v === "" || v.includes("riposo")) return 0;
-    let tot = 0;
-    for (const blocco of v.split("/")) {
-        const m = blocco.match(/(\d+):?(\d*)\s*-\s*(\d+):?(\d*)/);
-        if (!m) continue;
-        const h1 = +m[1], min1 = m[2] ? +m[2] : 0;
-        const h2 = +m[3], min2 = m[4] ? +m[4] : 0;
-        let ore = (h2 * 60 + min2 - (h1 * 60 + min1)) / 60;
-        if (ore >= 6) ore -= 0.5;
-        tot += ore;
+
+    let minutiTotali = 0;
+    const blocchi = v.split("/").map(b => b.trim());
+    for (const blocco of blocchi) {
+        const m = blocco.match(/^(\d{1,2})(?::(\d{1,2}))?\s*-\s*(\d{1,2})(?::(\d{1,2}))?$/);
+        if (!m) return 0;
+        const h1 = Number(m[1]), min1 = Number(m[2] || 0);
+        const h2 = Number(m[3]), min2 = Number(m[4] || 0);
+        if (h1 > 23 || h2 > 24 || min1 > 59 || min2 > 59) return 0;
+        const inizio = h1 * 60 + min1;
+        const fine = h2 * 60 + min2;
+        if (fine > 24 * 60 || fine <= inizio) return 0;
+        minutiTotali += fine - inizio;
     }
-    return Math.round(tot * 2) / 2;
+
+    // Pausa di 30 minuti una sola volta sul totale giornaliero se si lavorano almeno 7 ore.
+    if (minutiTotali >= 7 * 60) minutiTotali -= 30;
+    return Math.round((minutiTotali / 60) * 100) / 100;
 }
 
 function formatRecupero(val) {
