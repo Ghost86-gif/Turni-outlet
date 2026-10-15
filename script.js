@@ -661,54 +661,79 @@ function setupChart() {
 }
 
 function getAperturaRange() {
-    const m = (employeeData.parametri_generali.orario_apertura_pv || "10-20").match(/(\d+)\s*-\s*(\d+)/);
-    const start = m ? +m[1] : 10;
-    const end = m ? +m[2] : 20;
-    return { start, end };
+    const intervalli = parseTimeBlocks(employeeData.parametri_generali.orario_apertura_pv || "10-20");
+    if (!intervalli || !intervalli.length) return { start: 600, end: 1200 };
+    return {
+        start: Math.min(...intervalli.map(x => x.inizio)),
+        end: Math.max(...intervalli.map(x => x.fine))
+    };
+}
+
+function formatOra(minuti) {
+    const h = Math.floor(minuti / 60);
+    const m = minuti % 60;
+    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
 function drawChart() {
     const gantt = document.getElementById("gantt");
-    if (!gantt) return;
+    if (!gantt || !employeeData) return;
     const day = GIORNI[chartDayIndex];
-    const { start, end } = getAperturaRange();
-    const span = Math.max(1, end - start);
+    const apertura = getAperturaRange();
+    let start = apertura.start, end = apertura.end;
 
-    // Asse ore: stessa struttura delle righe (etichetta + tracciato)
+    // Include eventuali turni fuori dall'orario PV per non tagliarli nel grafico.
+    employeeData.dipendenti.forEach(emp => {
+        const intervalli = parseTimeBlocks(emp.turni[day]?.orario || "");
+        if (!intervalli) return;
+        intervalli.forEach(x => {
+            start = Math.min(start, x.inizio);
+            end = Math.max(end, x.fine);
+        });
+    });
+    const span = Math.max(1, end - start);
+    const tickSet = new Set([start, end]);
+    for (let t = Math.ceil(start / 60) * 60; t < end; t += 60) tickSet.add(t);
+
     let axisTicks = "";
-    for (let h = start; h <= end; h++) {
-        const left = ((h - start) / span) * 100;
-        const cls = h === start ? "first" : (h === end ? "last" : "");
-        axisTicks += '<span class="' + cls + '" style="left:' + left + '%">' + h + ':00</span>';
-    }
+    [...tickSet].sort((a, b) => a - b).forEach(t => {
+        const left = ((t - start) / span) * 100;
+        const cls = t === start ? "first" : (t === end ? "last" : "");
+        axisTicks += '<span class="' + cls + '" style="left:' + left + '%">' + formatOra(t) + '</span>';
+    });
     const axis = '<div class="gantt-axis"><div class="gantt-label"></div>' +
-                  '<div class="gantt-axis-track">' + axisTicks + '</div></div>';
+                 '<div class="gantt-axis-track">' + axisTicks + '</div></div>';
 
     let rows = "";
     let attivi = 0;
     employeeData.dipendenti.forEach(emp => {
-        const orario = emp.turni[day].orario || "";
+        const orario = emp.turni[day]?.orario || "";
         const label = emp.nome + " (" + emp.contratto_ore + "H)";
-        if (!orario || orario.toLowerCase().includes("riposo")) {
+        const intervalli = parseTimeBlocks(orario);
+
+        if (!orario || (intervalli && intervalli.length === 0)) {
             rows += '<div class="gantt-row"><div class="gantt-label">' + esc(label) + '</div>' +
                     '<div class="gantt-track"></div></div>';
             return;
         }
+
         attivi++;
         let bars = "";
-        orario.split("/").forEach(blocco => {
-            const mm = blocco.match(/(\d+):?(\d*)\s*-\s*(\d+):?(\d*)/);
-            if (!mm) return;
-            const h1 = +mm[1], h2 = +mm[3];
-            const left = ((h1 - start) / span) * 100;
-            const width = ((h2 - h1) / span) * 100;
-            bars += '<div class="gantt-bar" style="left:' + left + '%;width:' + width + '%" title="' +
-                    esc(blocco.trim()) + '">' + esc(blocco.trim()) + '</div>';
-        });
-        // Griglia verticale delle ore nel tracciato
+        if (intervalli) {
+            intervalli.forEach(x => {
+                const left = ((x.inizio - start) / span) * 100;
+                const width = ((x.fine - x.inizio) / span) * 100;
+                bars += '<div class="gantt-bar" style="left:' + left + '%;width:' + width + '%" title="' +
+                    esc(x.etichetta) + '">' + esc(x.etichetta) + '</div>';
+            });
+        } else {
+            bars = '<div class="gantt-invalid">Orario non valido</div>';
+        }
+
         let grid = "";
-        for (let h = start + 1; h < end; h++) {
-            const left = ((h - start) / span) * 100;
+        for (let t = Math.ceil(start / 60) * 60; t < end; t += 60) {
+            if (t <= start) continue;
+            const left = ((t - start) / span) * 100;
             grid += '<div style="position:absolute;left:' + left + '%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.08)"></div>';
         }
         rows += '<div class="gantt-row"><div class="gantt-label">' + esc(label) + '</div>' +
